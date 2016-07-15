@@ -1,0 +1,633 @@
+<link rel="import" href="/lib/polymer/polymer.html">
+<link rel="import" href="/elements/onion-app/onion-app.html">
+<link rel="import" href="/lib/iron-icons/iron-icons.html">
+<link rel="import" href="/lib/iron-icons/editor-icons.html">
+<link rel="import" href="/lib/iron-icons/device-icons.html">
+<link rel="import" href="/lib/iron-pages/iron-pages.html">
+<link rel="import" href="/lib/iron-flex-layout/classes/iron-flex-layout.html">
+<link rel="import" href="/elements/bootstrap-pills/bootstrap-pills.html">
+<link rel="import" href="../../lib/Onion-Console/bootstrap-dropdown/bootstrap-dropdown.html">
+<link rel="import" href="../../elements/onion-device-list/onion-device-list.html">
+<link rel="import" href="../../elements/onion-device-tiles/onion-device-tiles.html">
+<link rel="import" href="../../elements/onion-help/app-tour.html">
+<link rel="import" href="./oled-tour.html">
+<dom-module id="onion-oled">
+	<style>
+		:host {
+			-webkit-user-select: none;  /* Chrome all / Safari all */
+			-moz-user-select: none;     /* Firefox all */
+			-ms-user-select: none;      /* IE 10+ */
+			user-select: none;          /* Likely future */
+			height: 100%;
+			width: 100%;
+			--bootstrap-pill-border-radius: 3px;
+			--bootstrap-pill-color: #373a3c;
+			--bootstrap-dropdown-toggle-padding: 0 10px;
+			--bootstrap-dropdown-toggle-hover-bg: rgba(255, 255, 255, 0.5);
+		}
+		
+		onion-app-body{
+			@apply(--layout-vertical);
+		}
+		
+		onion-app-body > div {
+			height: 100%;
+			width: 100%;
+		}
+		#appBody{
+			margin-top:0px;
+
+		}
+		#oled-container {
+			width: 800px;
+			height: 525px;
+			background-color: #fff;
+			border-radius: 3px;
+		}
+
+		#oled-container-long {
+			width: 800px;
+			height: 550px;
+			background-color: #fff;
+			border-radius: 3px;
+		}
+		
+		#side-bar {
+			width: 150px;
+			height: 100%;
+			position: relative;
+			background-color: #f2f2f2;
+		}
+		
+		#side-bar bootstrap-pill iron-icon {
+			margin-right: 5px;
+		}
+		
+		#content {
+			padding: 25px;
+		}
+		
+		iron-pages {
+			width: 100%;
+			height: 100%;
+		}
+		
+		iron-pages > div {
+			padding: 25px;
+		}
+		
+		onion-app-toolbar button {
+			padding: 0 10px;
+			background-color: transparent;
+		}
+		
+		onion-app-toolbar button:hover {
+			background-color: rgba(255, 255, 255, 0.5);
+		}
+		
+		onion-app-toolbar button iron-icon,
+		onion-app-toolbar bootstrap-dropdown-toggle iron-icon {
+			margin-right: 5px;
+		}
+		
+		.oled-exp {
+			position: relative;
+			background-image: url('./img/oled-exp-bg.jpg');
+			display:flex;
+			width: 600px;
+			height: 400px;
+			background-repeat: no-repeat;
+			background-size: contain;
+			background-position: center center;
+			margin: 0 auto 25px auto;
+		}
+		
+		#oled-text,
+		#oled-image-display {
+			position: absolute;
+			background-color: transparent;
+			border: none;
+			left: 135px;
+			top: 111px;
+			height: 169px;
+			width: 335px;
+		}
+		
+		#oled-text {
+			resize: none;
+			color: #fff;
+			font-family: monospace;
+			font-size: 22px;
+			line-height: 19px;
+			letter-spacing: 2px;
+			padding: 7.5px;
+			white-space: -moz-pre !important;
+			/* Mozilla, since 1999 */
+			white-space: -pre;
+			/* Opera 4-6 */
+			white-space: -o-pre;
+			/* Opera 7 */
+			white-space: pre;
+			/* css-3 */
+			word-wrap: break-word;
+			/* Internet Explorer 5.5+ */
+			white-space: -webkit-pre;
+			/* Newer versions of Chrome/Safari*/
+			word-break: break-all;
+		}
+		
+		#oled-image-data {
+			display: none;
+		}
+		._scrollDropDown{
+/* 			text-align: center; */
+			color: white;
+			padding-left: 15px;
+			background:rgb(52, 73, 94);
+			cursor:pointer;
+		}
+		li._scrollDropDown:hover{
+			color: gray;
+		}
+
+		.device-communication {
+			color: #8c8c8c;
+			height: 35px;
+			width: 35px;
+		}
+
+	</style>
+
+	<template>
+		<onion-app app-name="OLED Expansion Control" toolbar-background="#34495e" background="#f2f2f2">
+			<onion-app-toolbar page-id="home">
+				<div class="layout horizontal">
+					<button on-click="_clearScreen" tour-id="clear-screen">
+						<iron-icon class="toolbar-icon" icon="icons:clear"></iron-icon><span>Clear Screen</span></button>
+					<button on-click="_invertScreen" tour-id="toggle-invert">
+						<iron-icon class="toolbar-icon" icon="icons:invert-colors"></iron-icon><span>Toggle Invert</span></button>
+					<button on-click="_dimScreen" tour-id="toggle-dim">
+						<iron-icon class="toolbar-icon" icon="device:brightness-medium"></iron-icon><span>Toggle Dim</span></button>
+					<bootstrap-dropdown for="scrollDropdown">
+						<li class="_scrollDropDown" on-tap="_scroll" data-args="left">Left</li>
+						<li class="_scrollDropDown" on-tap="_scroll" data-args="right">Right</li>
+						<li class="_scrollDropDown" on-tap="_scroll" data-args="diagonal-left">45&deg; Left</li>
+						<li class="_scrollDropDown" on-tap="_scroll" data-args="diagonal-right">45&deg; Right</li>
+						<li class="_scrollDropDown" on-tap="_scroll" data-args="stop">Stop Scrolling</li>
+					</bootstrap-dropdown>
+					<button id="scrollDropdown" tour-id="scroll">
+						<iron-icon class="toolbar-icon" icon="icons:swap-horiz"></iron-icon><span>Scroll</span>
+						<span><iron-icon icon="icons:arrow-drop-down"></iron-icon></span>
+					</button>
+				</div>
+			</onion-app-toolbar>
+
+			<onion-app-body page-id="home" id="mainAppBody">
+				<!-- App Tour -->
+				<oled-tour></oled-tour>
+
+				<div class=" flex layout vertical center-center">
+					<div class="layout horizontal center-center">
+						<!-- Device List -->
+						<onion-device-list tour-id="select-device" id="deviceListDropdown" selected-id="{{deviceChange}}" drop-down="true"  online-filter="true" online-only="true" share-filter="true" can-manage="true" tour-id="oled-select-device"></onion-device-list>
+
+						<!-- Device Communication Icon -->
+						<div class="device-communication">
+							<template is="dom-if" if="{{bDeviceCommunication}}">
+								<onion-loading loading="true" icon="icons:settings"></onion-loading>
+							</template>
+						</div>
+					</div>
+
+					<div class="horizontal center-justified layout center" id="appBody">
+					<div id="[[_calculateOledContainerClass(tabs, currentTab, bDisplaySaveImage)]]" class="horizontal layout">
+						<div id="side-bar">
+							<bootstrap-pills stacked selected="{{currentTab}}">
+								<bootstrap-pill>
+									<iron-icon icon="icons:font-download"></iron-icon><span>Text</span></bootstrap-pill>
+								<bootstrap-pill>
+									<iron-icon icon="editor:insert-photo"></iron-icon><span>Image</span></bootstrap-pill>
+							</bootstrap-pills>
+						</div>
+
+						<iron-pages attr-for-selected="id" selected="[[_currentTab(tabs, currentTab)]]">
+							<div id="text">
+								<div class="oled-exp">
+									<textarea id="oled-text" tour-id="write-text" value="{{textValue::input}}"></textarea>
+								</div>
+								<div class="horizontal center-justified layout">
+									<button type="button" class="btn btn-success" on-tap="_syncText" tour-id="display-text">Display on OLED</button>
+								</div>
+							</div>
+							<div id="image">
+								<div class="oled-exp">
+									<canvas id="oled-image-display"></canvas>
+									<canvas id="oled-image-data"></canvas>
+								</div>
+								<div class="horizontal center-justified layout">
+									<label class="file">
+										<input type="file" id="image-file" accept="image/*" on-change="_loadImage" />
+										<span class="file-custom"></span>
+									</label>
+								</div>
+								<template is="dom-if" if="{{bDisplaySaveImage}}">
+									<div class="horizontal center-justified layout">
+										<button type="button" class="btn btn-success" on-tap="_saveImage">Save to Omega</button>
+										<input type="text" id="save-file" value="{{imageSavePath::input}}"/>
+									</div>
+								</template>
+							</div>
+						</iron-pages>
+					</div>
+				</div>
+				</div>
+			</onion-app-body>
+		</onion-app>
+
+	</template>
+
+	<script>
+		'use strict';
+
+		(function () {
+			var ready = function () {
+				var deviceId=this.$.deviceListDropdown.selectedId;
+				// get the device provider
+				onionConsole.getService('onion-device-provider', (function (err,DeviceApi) {
+					this.DeviceApi= DeviceApi;
+				}).bind(this));
+
+				// get the expansion provider
+				onionConsole.getService('onion-device-hardware-provider', (function (err, api) {
+					this.expApi= api;
+				}).bind(this));
+
+				// setup the display canvas
+				this.displayCanvas = this.$['oled-image-display'];
+				this.displayCanvasContext = this.displayCanvas.getContext('2d');
+
+				this.dataCanvas = this.$['oled-image-data'];
+				this.dataCanvas.height = 64;
+				this.dataCanvas.width = 128;
+				this.dataCanvasContext = this.dataCanvas.getContext('2d');
+
+				// default save image file name
+				this.imageSavePath 		= '/root/image.lcd';
+				this.bDisplaySaveImage 	= false;
+			};
+
+			var _currentTab = function (tabs, currentTab) {
+				return tabs[currentTab];
+			};
+
+			var _calculateOledContainerClass = function (tabs, currentTab, bDisplaySaveImage) {
+				var currentTabName 	= tabs[currentTab];
+				
+				var ret 	= 'oled-container';
+				if (currentTabName === 'image' && bDisplaySaveImage) {
+					var ret 	= 'oled-container-long';
+				} 
+
+				return ret;
+			};
+
+			var _sendNotification = function (msg) {
+				onionConsole.sendNotification({
+					title: 'OLED Control',
+					message: msg
+				});
+			};
+
+			var _handleExpApiResponse = function (err, response) {
+				if (err) {
+					_sendNotification('[Error]: Unable to communicate with Relay Expansion');
+				} else if (response.error) {
+					_sendNotification('[Error]: Unable to communicate with selected device');
+				} 
+				
+				this.bDeviceCommunication 	= false;	// disable device communication icon
+			};
+
+			var _isDeviceIdValid = function (deviceId) {
+				return (deviceId !== '0' && deviceId !== 0 && deviceId);
+			};
+
+			// check if deviceId is a valid selection,
+			//	if so, run the callback that uses the expansion provider
+			// 	if not, send notification to select a target device
+			var _deviceCall = function (deviceId, callback) {
+				if ( _isDeviceIdValid(deviceId) ) {
+					console.log('Valid Device: ', deviceId);
+					// valid device: continue with the call
+					this.bDeviceCommunication 	= true;	// enable device communication icon
+					callback();
+				} else {
+					_sendNotification('[Error]: Select Target Device!');
+				}
+			}
+
+			var _deviceInit = function (){
+				var deviceId = this.$.deviceListDropdown.selectedId;
+				console.log('_deviceInit: device id: ', deviceId);
+
+				if ( _isDeviceIdValid(deviceId) ) {
+					this.bDeviceCommunication 	= true;	// enable device communication icon
+					this.expApi.oledInit(deviceId, (function (err, response) {
+						// console.log('device  callback: ', response);
+						this._handleExpApiResponse(err, response);
+						this.bDeviceCommunication 	= false;	// disable device communication icon
+					}).bind(this));
+				}
+
+				// set the deviceId for te file provider
+				onionConsole.getService('onion-file-provider', (function (err,fileProvider){
+					fileProvider.setDevice(deviceId);
+					this.fileProvider=fileProvider;
+				}).bind(this));
+			};
+
+			var _clearScreen = function () {
+				// clear the canvas
+				this.displayCanvasContext.clearRect(0, 0, this.displayCanvas.width, this.displayCanvas.height);
+				this.dataCanvasContext.clearRect(0, 0, this.dataCanvas.width, this.dataCanvas.height);
+
+				// clear the text to send to the OLED
+				this.textValue = '';
+
+				// hide the save image button
+				this.set('bDisplaySaveImage', false);
+			
+				// clear the physical OLED
+				var deviceId = this.$.deviceListDropdown.selectedId;
+				this._deviceCall(deviceId, (function () {
+					this.expApi.oledClear(deviceId, (function (err, response) {
+						this._handleExpApiResponse(err, response);
+					}).bind(this));
+				}).bind(this));
+			};
+
+			var _invertScreen = function () {
+				this.invert = !this.invert;
+
+				var deviceId = this.$.deviceListDropdown.selectedId;
+				this._deviceCall(deviceId, (function () {
+					this.expApi.oledInvert(deviceId, this.invert, (function (err, response) {
+						this._handleExpApiResponse(err, response);
+					}).bind(this));
+				}).bind(this));
+			};
+
+			var _dimScreen = function () {
+				this.dim = !this.dim;
+
+				var deviceId = this.$.deviceListDropdown.selectedDevice.id;
+				this._deviceCall(deviceId, (function () {
+					this.expApi.oledDim(deviceId, this.dim, (function (err, response) {
+						this._handleExpApiResponse(err, response);
+					}).bind(this));
+				}).bind(this));
+			};
+
+			var _scroll = function (e) {
+				var direction = e.target.dataset.args;
+				var deviceId = this.$.deviceListDropdown.selectedDevice.id;
+
+				this._deviceCall(deviceId, (function () {
+					this.expApi.oledScroll(deviceId, direction, (function (err, response) {
+						this._handleExpApiResponse(err, response);
+					}).bind(this));
+				}).bind(this));
+			};
+
+			var _textValueChanged = function (newValue, oldValue) {
+				var textArr = newValue.split('\n');
+				var lines = 0;
+
+				for (var i = 0; i < textArr.length; i++) {
+					lines += Math.ceil((textArr[i].length === 0 ? 1 : textArr[i].length) / 21);
+				}
+
+				if (lines > 8) {
+					this.textValue = oldValue;
+				}
+			};
+
+			var _syncText = function () {
+				var deviceId = this.$.deviceListDropdown.selectedDevice.id;
+
+				this._deviceCall(deviceId, (function () {
+					this.expApi.oledWrite(deviceId, this.textValue, {clear: true}, (function (err, response) {
+						this._handleExpApiResponse(err, response);
+					}).bind(this));
+				}).bind(this));
+			};
+
+			var _loadImage = function (e) {
+				if (this.$['image-file'].files && this.$['image-file'].files[0]) {
+					var fr = new FileReader();
+					fr.onload = (function (e) {
+						var img = new Image();
+						img.onload = (function (e) {
+							// Display on display canvas
+							_processImage(this.displayCanvas, this.displayCanvasContext, img, true);
+
+							// Get imgData from data canvas
+							var imgData 	= _processImage(this.dataCanvas, this.dataCanvasContext, img, false);
+							var pageArray 	= _convertToPageArray(imgData);
+							var hexDump 	= _generateHexDump(pageArray, true);
+
+							var deviceId = this.$.deviceListDropdown.selectedDevice.id;
+							if ( _isDeviceIdValid(deviceId) ) {
+								this.bDeviceCommunication 	= true;	// enable device communication icon
+
+								// create a temporary file on the device
+								this.fileProvider.createTempFile(hexDump, (function (filename) {
+									// display the file on the OLED 
+									this._deviceCall(deviceId, (function () {
+										this.expApi.oledDraw(deviceId, filename, {clear: true}, (function (err, response) {
+											console.log('_loadImage expApi response: ', response);
+											this._handleExpApiResponse(err, response);
+										}).bind(this));
+									}).bind(this));
+								}).bind(this));
+
+								// set the default image name
+								this.set('imageSavePath', '/root/image.lcd');
+								this.set('bDisplaySaveImage', true);
+							} else {
+								_sendNotification('[Error]: Select Target Device!');
+							}
+						}).bind(this);
+						
+						img.src = e.target.result;
+					}).bind(this);
+
+					fr.readAsDataURL(this.$['image-file'].files[0]);
+				} 
+			};
+
+			var _saveImage = function () {
+				var top 		= this;
+				var savePath 	= '/root/image.lcd'
+
+				if (this.imageSavePath != null) {
+					savePath 	= this.imageSavePath;
+				}
+
+				this.fileProvider.copyFile(this.fileProvider.getTempFile(), savePath);
+			};
+
+			var _processImage = function (canvas, context, img, bg) {
+				context.clearRect(0, 0, canvas.width, canvas.height);
+				var ratio = img.width / img.height, 
+					adjustedWidth, adjustedHeight, originX, originY;
+
+				if (img.height <= img.width / 2) {
+					// Spacer top and bottom
+					adjustedWidth = canvas.width;
+					adjustedHeight = adjustedWidth / ratio;
+					originX = 0;
+					originY = (canvas.height - adjustedHeight) / 2;
+				} else {
+					// Spacer left and right
+					adjustedHeight = canvas.height;
+					adjustedWidth = adjustedHeight * ratio;
+					originX = (canvas.width - adjustedWidth) / 2;
+					originY = 0;
+				}
+
+				context.drawImage(img, originX, originY, adjustedWidth, adjustedHeight);
+
+				var imgData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+				for (var i = 0; i < imgData.data.length; i += 4) {
+					var grayscale = imgData.data[i] * 0.3 + imgData.data[i + 1] * 0.59 + imgData.data[i + 2] * 0.11;
+
+					if (bg) {
+						imgData.data[i] = grayscale > 127 ? 255 : 37;
+						imgData.data[i + 1] = grayscale > 127 ? 255 : 30;
+						imgData.data[i + 2] = grayscale > 127 ? 255 : 51;
+						imgData.data[i + 3] = 255;
+					} else {
+						imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = grayscale > 127 ? 255 : 0;
+						imgData.data[i + 3] = 255;
+					}
+				}
+
+				context.putImageData(imgData, 0, 0);
+
+				return imgData;
+			};
+
+			var _convertToPageArray = function (imgData) {
+			    var data = imgData.data,
+			    	oledPages = [],
+			    	pageIndex = 0;
+
+			    for (var i = 0; i < imgData.height; i += 8) {
+			    	for (var j = 0; j < imgData.width; j++) {
+			    		pageIndex = (i * imgData.width) / 8 + j;
+
+			    		oledPages[pageIndex] = 0;
+
+			    		for (var k = 0; k < 8; k++) {
+			    			var dataIndex = ((i + k) * imgData.width + j) * 4;
+			    			var pixelValue = data[dataIndex] === 255 ? 1 : 0;
+
+			    			oledPages[pageIndex] = oledPages[pageIndex] | ((pixelValue & 0x01) << k);
+			    		}
+			    	}
+			    }
+
+			    return oledPages;
+			};
+
+			var _dec2hex = function (i) {
+				var result = '00';
+
+			    if (i >= 0 && i <= 15) {
+			    	result = '0' + i.toString(16);
+			    } else if (i >= 16   && i <= 255) {
+			    	result = i.toString(16);
+			    }
+
+			    return result;
+			};
+
+			var _generateHexDump = function (pageArray, minified) {
+			    var hexDump  = '';
+
+			    for (var i = 0; i < pageArray.length; i++) {
+			        if (!minified) {
+			            hexDump  += '0x';
+			            hexDump  += _dec2hex(pageArray[i]);
+			            hexDump  += ",";
+			        } else {
+			            hexDump  += _dec2hex(pageArray[i]);
+			        }
+			    }
+
+			    return hexDump;
+			};
+
+
+			Polymer({
+				is: 'onion-oled',
+				ready: ready,
+				behaviors: [Onion.AppBehavior],
+				properties: {
+					tabs: {
+						type: Array,
+						value: [
+							'text',
+							'image'
+						]
+					},
+					currentTab: {
+						type: String,
+						value: '0',
+						notify: true
+					},
+					textValue: {
+						type: String,
+						value: '',
+						observer: '_textValueChanged'
+					},
+					invert: {
+						type: Boolean,
+						value: false
+					},
+					dim: {
+						type: Boolean,
+						value: false
+					},
+					deviceChange:{
+						type: String,
+						value: 0,
+						notify: true,
+						observer: '_deviceInit'
+					},
+					bDeviceCommunication: {
+						type: Boolean,
+						value: false,
+						notify: true
+					}
+				},
+				_currentTab: _currentTab,
+				_calculateOledContainerClass: _calculateOledContainerClass,
+				_textValueChanged: _textValueChanged,
+				_deviceCall: _deviceCall,
+				_handleExpApiResponse: _handleExpApiResponse,
+				_deviceInit: _deviceInit,
+				_syncText: _syncText,
+				_loadImage: _loadImage,
+				_saveImage: _saveImage,
+				_clearScreen: _clearScreen,
+				_invertScreen: _invertScreen,
+				_dimScreen: _dimScreen,
+				_scroll: _scroll
+			});
+		})();
+	</script>
+
+</dom-module>
